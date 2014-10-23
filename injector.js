@@ -222,7 +222,7 @@
    */
   function promptr(type, msg, extraObject) {
     if (promptrDial) {
-      promptrDial.class = PRMPT_CLASS + ' ' + type;
+      promptrDial.className = PRMPT_CLASS + ' ' + type;
       promptrDial.innerText = msg;
     }
     else {
