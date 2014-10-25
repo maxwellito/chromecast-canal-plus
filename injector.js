@@ -52,7 +52,8 @@
    * Then finish by init the Chromecast
    */
   
-  var promptrDial,                       // DOM element of the warning paragraph
+  var currentSession,
+      promptrDial,                       // DOM element of the warning paragraph
       tags                = [],          // Array of DOM elements representing a video
       videoIdPattern      = /^[0-9]+$/,  // Regexp to check videoIds
       videoInfoCallbacks  = {},          // Contain callbacks for a loaded videoId (videoId => array(callbacks))
@@ -65,7 +66,7 @@
    *
    */
   function start () {
-    var id;
+    var id, newTags;
 
     // Check if already executed
     if (window.chromecaster) {
@@ -74,13 +75,17 @@
 
     // Get the DOM element representing a video then start
     // a request for each of them to display the Chromecast button
-    tags = document.querySelectorAll('.playerVideo, *[id^=video_]');
-    for (var i = 0; i < tags.length; i++) {
-      id = (tags[i].id && tags[i].id.substr(6)) || window.videoId || window.historyVideoId;
+    newTags = document.querySelectorAll('.playerVideo, *[id^=video_]');
+    for (var i = 0; i < newTags.length; i++) {
+      if (tags.indexOf(newTags[i]) !== -1) {
+        continue;
+      }
+      tags.push(newTags[i]);
+      id = (newTags[i].id && newTags[i].id.substr(6)) || window.videoId || window.historyVideoId;
       if (!videoIdPattern.test(id)) {
         continue;
       }
-      addChromecastButton(tags[i], id);
+      addChromecastButton(newTags[i], id);
     }
 
     // Display the popup
@@ -104,36 +109,35 @@
    * @param {String} videoId   Id of the video to link
    */
   function addChromecastButton (DOMobject, videoId) {
-    getInfo(videoId, function (video) {
-      var ccBtnAction;
+    var ccBtnAction;
 
-      // Check the data
-      if (!(video && video.MEDIA && video.MEDIA.VIDEOS && video.MEDIA.VIDEOS.HLS)) {
-        console.error('Chromecast Canal+: Cannot retrieve video information about the stream');
-        console.error('>> ', {
-          videoId: videoId,
-          videoInfo: videoInfo,
-          DOMobject: DOMobject
-        });
-        return;
-      }
-
-      ccBtnAction = function () {
+    // Create and set the DOM
+    ccBtnDom = document.createElement('div');
+    ccBtnDom.className = CCBTN_CLASS;
+    ccBtnDom.onclick = function () {
+      getInfo(videoId, function (video) {
+        // Check the data
+        if (!(video && video.MEDIA && video.MEDIA.VIDEOS && video.MEDIA.VIDEOS.HLS)) {
+          console.error('Chromecast Canal+: Cannot retrieve video information about the stream');
+          console.error('>> ', {
+            videoId: videoId,
+            videoInfo: videoInfo,
+            DOMobject: DOMobject
+          });
+          return;
+        }
         window.chromecaster(
           video.MEDIA.VIDEOS.HLS,
           (video.INFOS && video.INFOS.TITRAGE && video.INFOS.TITRAGE.TITRE),
           (video.INFOS && video.INFOS.TITRAGE && video.INFOS.TITRAGE.SOUS_TITRE),
           video.DURATION
         );
-      };
+      });
+    };
 
-      // Create and set the DOM
-      ccBtnDom = document.createElement('div');
-      ccBtnDom.className  = CCBTN_CLASS;
-      ccBtnDom.onclick    = ccBtnAction;
-      DOMobject.style.position = 'relative';
-      DOMobject.appendChild(ccBtnDom);
-    });
+    // Add the Chromecast button as child of the DOMobject
+    DOMobject.style.position = 'relative';
+    DOMobject.appendChild(ccBtnDom);
   }
 
   /**
@@ -167,9 +171,7 @@
         try {
           var i, jsonData = JSON.parse(this.responseText);
           for (i = jsonData.length - 1; i>=0; i--) {
-            if (jsonData[i].ID === videoId) {
-              videoInfoData[videoId] = jsonData[i];
-            }
+            videoInfoData[jsonData[i].ID] = jsonData[i];
           }
           for (i = videoInfoCallbacks[videoId].length - 1; i>=0; i--) {
             videoInfoCallbacks[videoId][i](videoInfoData[videoId] || {});
@@ -328,14 +330,22 @@
 
     console.info('chromecaster called', arguments);
 
-    // Request a session to cast
-    chrome.cast.requestSession(onRequestSessionSuccess, onLaunchError);
+    if (currentSession) {
+      onRequestSessionSuccess(currentSession);
+    }
+    else {
+      // Request a session to cast
+      chrome.cast.requestSession(onRequestSessionSuccess, onLaunchError);
+    }
 
     function onLaunchError (e) {
       promptr('error', 'La demande de session a échoué', e);
+      currentSession = null;
     }
 
     function onRequestSessionSuccess (session) {
+      currentSession = session;
+
       var mediaInfo = new chrome.cast.media.MediaInfo(currentMediaURL);
       mediaInfo.contentType    = 'application/vnd.apple.mpegurl';
       mediaInfo.metadata       = {
