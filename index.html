@@ -46,12 +46,15 @@
         height: 0px;
         overflow: hidden;
       }
-      .warning {
+      .promptr {
         font-size: 0.75em;
         color: #ffffff;
         background: #d00;
         padding: 4px;
         border-radius: 4px;
+      }
+      .promptr.success {
+        background: #00dd00;
       }
 
       @media only screen and (max-width:480px) {
@@ -74,10 +77,24 @@
 
       <p>...puis cliquez sur votre nouveau raccourci lorsque vous naviguez sur <a class="link" href="http://canalplus.fr">canalplus.fr</a> pour afficher les videos disponibles pour Chromecast.</p>
 
-      <p class="warning">Attention, pour utiliser ce script vous devez utiliser Chrome/Chromium avec l'extension <a class="link" href="https://chrome.google.com/webstore/detail/google-cast/boadgeojelhgndaghljhdicfkmllpafd">Chromecast</a>.</p>
+      <p id="promptr" class="promptr">Attention, pour utiliser ce script vous devez utiliser Chrome/Chromium avec l'extension <a class="link" href="https://chrome.google.com/webstore/detail/google-cast/boadgeojelhgndaghljhdicfkmllpafd">Chromecast</a>.</p>
 
       <p class="credits"><a class="link" href="http://twitter.com/mxwllt">@mxwllt</a></p>
     </div>
+
+    <script type="text/javascript">
+      // Listener setup for when the chromecast is available
+      window['__onGCastApiAvailable'] = function (loaded, errorInfo) {
+        var promptr = document.getElementById('promptr');
+        if (loaded) {
+          promptr.innerText  = 'Vous etes pret a caster.';
+          promptr.className += ' success';
+        } else {
+          promptr.innerText  = 'Votre navigateur n\'est pas pret a caster.';
+        }
+      };
+    </script>
+    <script type="text/javascript" src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js"></script>
 
   </body>
 </html>
