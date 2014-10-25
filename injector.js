@@ -25,6 +25,7 @@
    */
   var POPUP_CLASS = 'cc_fc',
       CCBTN_CLASS = 'cc_btn',
+      CCRDY_CLASS = 'cc_ready',
       PRMPT_CLASS = 'cc_promptr',
       HTML_INTRO  = '<h1 class="mod-title">CAST + <small>chromecast for Canal Plus</small></h1><p>L\'extension Chrome est necessaire pour profiter du Chromecast (<a href="https://chrome.google.com/webstore/detail/google-cast/boadgeojelhgndaghljhdicfkmllpafd">disponible ici</a>).</p>',
       HTML_PRMPT  = '<h2 id="' + PRMPT_CLASS + '"></h2>',
@@ -37,6 +38,7 @@
                       '.' + PRMPT_CLASS + '.error {background: #d00;}' +
                       '.' + PRMPT_CLASS + '.info  {background: #0d0;}' +
                       '.' + CCBTN_CLASS + ' {display: none; position: absolute; z-index: 1337; top: 0; left: 0; width: 58px; height: 40px; background: url("//maxwellito.github.io/chromecast-canal-plus/assets/chromecast_icon.svg") rgba(0,0,0,0.75) no-repeat center center; background-size: 32px; cursor: pointer;}' +
+                      '.' + CCRDY_CLASS + ' .' + CCBTN_CLASS + ' {display: block;}' +
                     '</style>';
 
   /**
@@ -52,9 +54,7 @@
    * Then finish by init the Chromecast
    */
   
-  var currentSession,
-      promptrDial,                       // DOM element of the warning paragraph
-      tags                = [],          // Array of DOM elements representing a video
+  var promptrDial,                       // DOM element of the warning paragraph
       videoIdPattern      = /^[0-9]+$/,  // Regexp to check videoIds
       videoInfoCallbacks  = {},          // Contain callbacks for a loaded videoId (videoId => array(callbacks))
       videoInfoData       = {};          // Contain the videoInfo object for a videoId (videoId => object)
@@ -68,19 +68,14 @@
   function start () {
     var id, newTags;
 
-    // Check if already executed
-    if (window.chromecaster) {
-      return;
-    }
-
     // Get the DOM element representing a video then start
     // a request for each of them to display the Chromecast button
     newTags = document.querySelectorAll('.playerVideo, *[id^=video_]');
     for (var i = 0; i < newTags.length; i++) {
-      if (tags.indexOf(newTags[i]) !== -1) {
+      if (newTags[i].querySelector('.' + CCBTN_CLASS)) {
+        newTags[i].parentNode.style.position = 'relative';
         continue;
       }
-      tags.push(newTags[i]);
       id = (newTags[i].id && newTags[i].id.substr(6)) || window.videoId || window.historyVideoId;
       if (!videoIdPattern.test(id)) {
         continue;
@@ -92,7 +87,10 @@
     insertPopup();
 
     // Init the Chromecast
-    initChromecast();
+    // Check if already executed
+    if (!window.chromecaster) {
+      initChromecast();
+    }
   }
 
 
@@ -291,10 +289,7 @@
       if (e === chrome.cast.ReceiverAvailability.AVAILABLE) {
         // Perfect time to show the chromecast button
         promptr('info','Chromecast available');
-        var btns = document.querySelectorAll('.' + CCBTN_CLASS);
-        for (i = 0; i < btns.length; i++) {
-          btns[i].style.display = 'block';
-        }
+        document.body.className += ' ' + CCRDY_CLASS;
       }
       else {
         promtpr('error', 'Chromecast non disponible');
@@ -326,12 +321,12 @@
    * @param  {string}  subtitle        Video subtitle [optional]
    * @param  {integer} duration        Video duration in seconds [optional]
    */
-  window.chromecaster = function (currentMediaURL, title, subtitle, duration) {
+  window.chromecaster = window.chromecaster || function (currentMediaURL, title, subtitle, duration) {
 
     console.info('chromecaster called', arguments);
 
-    if (currentSession) {
-      onRequestSessionSuccess(currentSession);
+    if (window.chromecasterSession) {
+      onRequestSessionSuccess(window.chromecasterSession);
     }
     else {
       // Request a session to cast
@@ -340,11 +335,11 @@
 
     function onLaunchError (e) {
       promptr('error', 'La demande de session a échoué', e);
-      currentSession = null;
+      window.chromecasterSession = null;
     }
 
     function onRequestSessionSuccess (session) {
-      currentSession = session;
+      window.chromecasterSession = session;
 
       var mediaInfo = new chrome.cast.media.MediaInfo(currentMediaURL);
       mediaInfo.contentType    = 'application/vnd.apple.mpegurl';
