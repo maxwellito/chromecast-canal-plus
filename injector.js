@@ -66,21 +66,38 @@
    *
    */
   function start () {
-    var id, newTags;
+    var id, tag, newTags;
 
     // Get the DOM element representing a video then start
     // a request for each of them to display the Chromecast button
-    newTags = document.querySelectorAll('.playerVideo, *[id^=video_]');
+    newTags = document.querySelectorAll('.playerVideo, *[id^=video_], .unit.unit-feature.blockcom-illu.parent-cglow.parent-fil-mign, div.img a[class=""]'); // a[href*="vid="]
     for (var i = 0; i < newTags.length; i++) {
-      if (newTags[i].querySelector('.' + CCBTN_CLASS)) {
-        newTags[i].parentNode.style.position = 'relative';
+      tag = newTags[i];
+
+      // Avoid founded tags
+      if (tag.querySelector('.' + CCBTN_CLASS)) {
+        tag.parentNode.style.position = 'relative';
         continue;
       }
-      id = (newTags[i].id && newTags[i].id.substr(6)) || window.videoId || window.historyVideoId;
-      if (!videoIdPattern.test(id)) {
-        continue;
+      // Find the ID
+      switch (tag.tagName) {
+      case 'A':
+        if (!tag.childElementCount) {
+          continue;
+        }
+        id = (tag.href && tag.href.substr(-7));
+        tag.href = '#';
+        break;
+      case 'DIV':
+        id = (tag.id && tag.id.substr(6)) || window.videoId || window.historyVideoId;
+        break;
+      default:
+        id = '';
       }
-      addChromecastButton(newTags[i], id);
+      // Check if the ID is valid
+      if (videoIdPattern.test(id)) {
+        addChromecastButton(tag, id);
+      }
     }
 
     // Display the popup
@@ -112,7 +129,11 @@
     // Create and set the DOM
     ccBtnDom = document.createElement('div');
     ccBtnDom.className = CCBTN_CLASS;
-    ccBtnDom.onclick = function () {
+    ccBtnDom.onclick = function (e) {
+      // Kill propagation
+      e.stopPropagation();
+      window.event.cancelBubble = true;
+
       getInfo(videoId, function (video) {
         // Check the data
         if (!(video && video.MEDIA && video.MEDIA.VIDEOS && video.MEDIA.VIDEOS.HLS)) {
@@ -168,9 +189,15 @@
       if (this.readyState == 4 && this.status == 200) {
         try {
           var i, jsonData = JSON.parse(this.responseText);
-          for (i = jsonData.length - 1; i>=0; i--) {
-            videoInfoData[jsonData[i].ID] = jsonData[i];
+          if (jsonData.ID) {
+            videoInfoData[jsonData.ID] = jsonData;
           }
+          else {
+            for (i = jsonData.length - 1; i>=0; i--) {
+              videoInfoData[jsonData[i].ID] = jsonData[i];
+            }
+          }
+          
           for (i = videoInfoCallbacks[videoId].length - 1; i>=0; i--) {
             videoInfoCallbacks[videoId][i](videoInfoData[videoId] || {});
           }
@@ -292,7 +319,7 @@
         document.body.className += ' ' + CCRDY_CLASS;
       }
       else {
-        promtpr('error', 'Chromecast non disponible');
+        promptr('error', 'Chromecast non disponible');
       }
     }
 
@@ -301,7 +328,7 @@
     }
 
     function onError (e) {
-      promptr('error', 'L\'initialisation du Chromecast a échoué', e);
+      promptr('error', 'L\'initialisation du Chromecast a echoue', e);
     }
 
     // Inject the Chromecast script
@@ -334,7 +361,7 @@
     }
 
     function onLaunchError (e) {
-      promptr('error', 'La demande de session a échoué', e);
+      promptr('error', 'La demande de session a echoue', e);
       window.chromecasterSession = null;
     }
 
